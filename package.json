@@ -2,7 +2,7 @@
   "name": "pathifier",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://artemonic.github.io/Pathifier/",
+  "homepage": "https://artemonic.github.io/pathifier/",
   "type": "module",
   "scripts": {
     "dev": "vite",
