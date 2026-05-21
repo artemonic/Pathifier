@@ -1,0 +1,173 @@
+import { useState, useCallback } from 'react'
+import './App.css'
+import DrawingCanvas from './components/DrawingCanvas'
+import Controls from './components/Controls'
+import CropModal from './components/CropModal'
+import { generateSVG } from './utils/smoothing'
+import type { Settings, Point } from './types'
+
+export interface Progress {
+  message: string
+  percent: number
+}
+
+function App() {
+  const [image, setImage] = useState<string | null>(null)
+  const [tempImage, setTempImage] = useState<string | null>(null)
+  const [settings, setSettings] = useState<Settings>({
+    blacks: 0.0,
+    whites: 1.0,
+    midtones: 0.5,
+    contrast: 0,
+    invert: false,
+    vignetteAmount: 0,
+    vignetteWidth: 0.5,
+    vignetteBlur: 0.5,
+    lineWidth: 3.0,
+    smoothing: 0,
+    maxLineLength: 1000,
+    algorithm: 'TSP',
+    pointCount: 10000,
+    pointsPerLine: 256,
+    dither: 'Atkinson',
+    dotStyle: 'dots',
+    circleDiameter: 1.0,
+    oscAmplitude: 5.0,
+    oscFrequencyLevels: 4,
+    oscMaxFrequency: 8.0,
+    oscScanLines: 100,
+    oscMode: 'linear',
+  })
+  const [autoProcess, setAutoProcess] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [progress, setProgress] = useState<Progress>({ message: '', percent: 0 })
+  const [currentPath, setCurrentPath] = useState<Point[][]>([])
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  const [processTrigger, setProcessTrigger] = useState(0)
+  const [stopTrigger, setStopTrigger] = useState(0)
+  const [zoom, setZoom] = useState(1)
+
+  const handleImageUpload = (imageUrl: string) => {
+    setTempImage(imageUrl)
+  }
+
+  const handleCropComplete = (croppedImageUrl: string) => {
+    setImage(croppedImageUrl)
+    setTempImage(null)
+    setCurrentPath([])
+    setProgress({ message: '', percent: 0 })
+  }
+
+  const handleCropCancel = () => {
+    setTempImage(null)
+  }
+
+  const handleRunProcessing = () => {
+    setProcessTrigger(prev => prev + 1)
+  }
+
+  const handleStopProcessing = () => {
+    setStopTrigger(prev => prev + 1)
+    setIsProcessing(false)
+    setProgress({ message: '', percent: 0 })
+  }
+
+  const handleExportSVG = useCallback(() => {
+    if (currentPath.length === 0) return
+
+    const svgContent = generateSVG(currentPath, canvasSize.width, canvasSize.height, settings.lineWidth)
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'pathifier.svg'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [currentPath, canvasSize, settings.lineWidth])
+
+  return (
+    <div className="app-container">
+      <header>
+        <h1>Pathifier</h1>
+        <p className="subtitle">A picture to line-art converter</p>
+      </header>
+      <main>
+        <aside className="sidebar left">
+          <Controls 
+            panel="left"
+            image={image} 
+            settings={settings} 
+            setSettings={setSettings}
+            autoProcess={autoProcess}
+            setAutoProcess={setAutoProcess}
+            onRunProcessing={handleRunProcessing}
+            onImageUpload={handleImageUpload}
+            onExportSVG={handleExportSVG}
+            isProcessing={isProcessing}
+            hasPath={currentPath.length > 0}
+          />
+        </aside>
+
+        <div className="canvas-area">
+          <DrawingCanvas 
+            image={image} 
+            settings={settings} 
+            autoProcess={autoProcess}
+            processTrigger={processTrigger}
+            stopTrigger={stopTrigger}
+            setIsProcessing={setIsProcessing}
+            setProgress={setProgress}
+            onPathGenerated={setCurrentPath}
+            onSizeChange={setCanvasSize}
+            onImageUpload={handleImageUpload}
+            zoom={zoom}
+            setZoom={setZoom}
+          />
+          {isProcessing && (
+            <div className="loading-overlay">
+              <div className="loader">
+                <div className="loader-text">{progress.message || 'Processing...'}</div>
+                <div className="progress-bar-container">
+                  <div className="progress-bar" style={{ width: `${progress.percent}%` }}></div>
+                </div>
+                <div className="loader-footer">
+                  <div className="percent-text">{progress.percent}%</div>
+                  <button className="stop-btn" onClick={handleStopProcessing}>Stop</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <aside className="sidebar right">
+          <Controls 
+            panel="right"
+            image={image} 
+            settings={settings} 
+            setSettings={setSettings}
+            autoProcess={autoProcess}
+            setAutoProcess={setAutoProcess}
+            onRunProcessing={handleRunProcessing}
+            onImageUpload={handleImageUpload}
+            onExportSVG={handleExportSVG}
+            isProcessing={isProcessing}
+            hasPath={currentPath.length > 0}
+          />
+        </aside>
+      </main>
+
+      {tempImage && (
+        <CropModal 
+          image={tempImage} 
+          onCropComplete={handleCropComplete} 
+          onCancel={handleCropCancel} 
+        />
+      )}
+    </div>
+  )
+}
+
+export default App
